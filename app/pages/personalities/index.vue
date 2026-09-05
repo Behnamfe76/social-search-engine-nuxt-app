@@ -2,7 +2,7 @@
 import { upperFirst } from 'scule'
 import type { TableColumn } from '@nuxt/ui'
 import type { Row } from '@tanstack/table-core'
-import type { ActiveFilter, Gender, Paginated, Personality } from '~/types'
+import type { ActiveFilter, Gender, LookupDimension, LookupRef, Paginated, Personality } from '~/types'
 
 const UButton = resolveComponent('UButton')
 const UBadge = resolveComponent('UBadge')
@@ -21,14 +21,38 @@ const table = useTemplateRef('table')
 
 const columnVisibility = ref()
 
-/** Column ids are the API's snake_case field names, so they need real labels. */
+/** Column ids are the API's field names, so they need real labels. */
 const COLUMN_LABELS: Record<string, string> = {
   id: 'ID',
   full_name: 'Name',
   gender: 'Gender',
-  industry_id: 'Industry',
+  industry: 'Industry',
+  skills: 'Skills',
+  companies: 'Companies',
+  occupation_roles: 'Roles',
+  occupation_levels: 'Seniority',
+  languages: 'Languages',
+  certifications: 'Certifications',
+  interests: 'Interests',
   created_at: 'Added'
 }
+
+/**
+ * Every dimension filter, in one table: the query param the API takes, the
+ * lookup endpoint behind the picker, and the label used on chips and menus.
+ */
+const DIMENSIONS = [
+  { key: 'industry_id', dimension: 'industries', label: 'Industry' },
+  { key: 'skill_id', dimension: 'skills', label: 'Skill' },
+  { key: 'company_id', dimension: 'companies', label: 'Company' },
+  { key: 'occupation_role_id', dimension: 'occupation-roles', label: 'Role' },
+  { key: 'occupation_level_id', dimension: 'occupation-levels', label: 'Seniority' },
+  { key: 'language_id', dimension: 'languages', label: 'Language' },
+  { key: 'certification_id', dimension: 'certifications', label: 'Certification' },
+  { key: 'interest_id', dimension: 'interests', label: 'Interest' }
+] as const satisfies readonly { key: string, dimension: LookupDimension, label: string }[]
+
+type DimensionKey = typeof DIMENSIONS[number]['key']
 
 function queryString(key: string): string {
   const value = route.query[key]
@@ -40,11 +64,18 @@ function queryNumber(key: string): number | undefined {
   return Number.isFinite(value) && value > 0 ? value : undefined
 }
 
+/** A repeated param arrives as an array, a single one as a string. */
+function queryIds(key: string): number[] {
+  const value = route.query[key]
+  const raw = Array.isArray(value) ? value : [value]
+
+  return raw.map(Number).filter(id => Number.isInteger(id) && id > 0)
+}
+
 // Filters start from the URL so a search — and the "profiles from this batch"
 // link on an import — can be shared and reloaded.
 const search = ref(queryString('search'))
 const gender = ref<Gender | 'all'>((queryString('gender') || 'all') as Gender | 'all')
-const industryId = ref<number | undefined>(queryNumber('industry_id'))
 const importBatchId = ref<number | undefined>(queryNumber('import_batch_id'))
 const birthYearMin = ref<number | undefined>(queryNumber('birth_year_min'))
 const birthYearMax = ref<number | undefined>(queryNumber('birth_year_max'))
@@ -52,16 +83,43 @@ const ordering = ref(queryString('ordering') || '-created_at')
 const page = ref(queryNumber('page') || 1)
 const pageSize = ref(20)
 
+/** The chosen options per dimension, held as `{ id, name }` so chips read as words. */
+const picked = reactive(Object.fromEntries(
+  DIMENSIONS.map(entry => [entry.key, queryIds(entry.key).map(id => ({ id, name: `#${id}` }))])
+) as Record<DimensionKey, LookupRef[]>)
+
+// Ids from a shared URL start out nameless. Swap in the real names once.
+onMounted(async () => {
+  await Promise.all(DIMENSIONS.map(async (entry) => {
+    const ids = picked[entry.key].map(item => item.id)
+
+    if (!ids.length) {
+      return
+    }
+
+    try {
+      picked[entry.key] = await $fetch<LookupRef[]>(`/api/lookups/${entry.dimension}/resolve`, {
+        query: { ids: ids.join(',') }
+      })
+    } catch {
+      // Keep the numeric placeholders rather than dropping the filter.
+    }
+  }))
+})
+
 // Typing should not fire a request per keystroke.
 const debouncedSearch = refDebounced(search, 300)
 
 const filters = computed(() => ({
   search: debouncedSearch.value || undefined,
   gender: gender.value === 'all' ? undefined : gender.value,
-  industry_id: industryId.value,
   import_batch_id: importBatchId.value,
   birth_year_min: birthYearMin.value,
   birth_year_max: birthYearMax.value,
+  ...Object.fromEntries(DIMENSIONS.map(entry => [
+    entry.key,
+    picked[entry.key].length ? picked[entry.key].map(item => item.id) : undefined
+  ])),
   ordering: ordering.value
 }))
 
@@ -96,13 +154,25 @@ watch(query, (value) => {
 const FILTER_RESETTERS: Record<string, () => void> = {
   search: () => { search.value = '' },
   gender: () => { gender.value = 'all' },
-  industry_id: () => { industryId.value = undefined },
   import_batch_id: () => { importBatchId.value = undefined },
   birth_year_min: () => { birthYearMin.value = undefined },
-  birth_year_max: () => { birthYearMax.value = undefined }
+  birth_year_max: () => { birthYearMax.value = undefined },
+  ...Object.fromEntries(DIMENSIONS.map(entry => [
+    entry.key,
+    () => { picked[entry.key] = [] }
+  ]))
 }
 
 function clearFilter(key: string) {
+  // A dimension chip carries the one option it stands for, e.g. `skill_id:81`.
+  const [dimensionKey, id] = key.split(':')
+
+  if (id && dimensionKey && dimensionKey in picked) {
+    const target = dimensionKey as DimensionKey
+    picked[target] = picked[target].filter(item => item.id !== Number(id))
+    return
+  }
+
   FILTER_RESETTERS[key]?.()
 }
 
@@ -119,9 +189,14 @@ const activeFilters = computed<ActiveFilter[]>(() => {
   if (gender.value !== 'all') {
     applied.push({ key: 'gender', label: 'Gender', value: genderLabel(gender.value) })
   }
-  if (industryId.value !== undefined) {
-    applied.push({ key: 'industry_id', label: 'Industry', value: `#${industryId.value}` })
+
+  // One chip per chosen option, so any single one can be removed on its own.
+  for (const entry of DIMENSIONS) {
+    for (const item of picked[entry.key]) {
+      applied.push({ key: `${entry.key}:${item.id}`, label: entry.label, value: humanise(item.name) })
+    }
   }
+
   if (importBatchId.value !== undefined) {
     applied.push({ key: 'import_batch_id', label: 'Import batch', value: `#${importBatchId.value}` })
   }
@@ -154,6 +229,36 @@ function sortableHeader(field: string, label: string) {
     class: '-mx-2.5',
     onClick: () => toggleOrdering(field)
   })
+}
+
+/**
+ * Render a dimension as chips. Each one filters the list down to itself, which
+ * is the whole point of the API returning ids alongside the names.
+ */
+function refCell(refs: LookupRef[], filterKey: DimensionKey) {
+  if (!refs.length) {
+    return h('span', { class: 'text-dimmed' }, '—')
+  }
+
+  const shown = refs.slice(0, 2)
+  const rest = refs.length - shown.length
+
+  return h('div', { class: 'flex flex-wrap items-center gap-1' }, [
+    ...shown.map(item => h(UBadge, {
+      key: item.id,
+      variant: 'subtle',
+      color: 'neutral',
+      class: 'max-w-40 cursor-pointer hover:text-primary',
+      title: item.name,
+      onClick: () => {
+        if (!picked[filterKey].some(chosen => chosen.id === item.id)) {
+          picked[filterKey] = [...picked[filterKey], item]
+        }
+      }
+    }, () => h('span', { class: 'truncate' }, item.name))
+    ),
+    rest > 0 ? h('span', { class: 'text-xs text-dimmed' }, `+${rest}`) : null
+  ])
 }
 
 function getRowItems(row: Row<Personality>) {
@@ -194,11 +299,40 @@ const columns: TableColumn<Personality>[] = [{
     color: row.original.gender === 'unknown' ? 'neutral' : 'primary'
   }, () => genderLabel(row.original.gender))
 }, {
-  accessorKey: 'industry_id',
+  accessorKey: 'industry',
   header: 'Industry',
-  // The list serialiser exposes the FK, not the name — there is no industries
-  // endpoint to resolve it against.
-  cell: ({ row }) => h('span', { class: 'text-muted' }, row.original.industry_id ? `#${row.original.industry_id}` : '—')
+  cell: ({ row }) => h('span', {
+    class: 'text-muted truncate block max-w-48',
+    title: row.original.industry ?? undefined
+  }, row.original.industry ? humanise(row.original.industry) : '—')
+}, {
+  accessorKey: 'skills',
+  header: 'Skills',
+  cell: ({ row }) => refCell(row.original.skills, 'skill_id')
+}, {
+  accessorKey: 'companies',
+  header: 'Companies',
+  cell: ({ row }) => refCell(row.original.companies, 'company_id')
+}, {
+  accessorKey: 'occupation_roles',
+  header: 'Roles',
+  cell: ({ row }) => refCell(row.original.occupation_roles, 'occupation_role_id')
+}, {
+  accessorKey: 'occupation_levels',
+  header: 'Seniority',
+  cell: ({ row }) => refCell(row.original.occupation_levels, 'occupation_level_id')
+}, {
+  accessorKey: 'languages',
+  header: 'Languages',
+  cell: ({ row }) => refCell(row.original.languages, 'language_id')
+}, {
+  accessorKey: 'certifications',
+  header: 'Certifications',
+  cell: ({ row }) => refCell(row.original.certifications, 'certification_id')
+}, {
+  accessorKey: 'interests',
+  header: 'Interests',
+  cell: ({ row }) => refCell(row.original.interests, 'interest_id')
 }, {
   accessorKey: 'created_at',
   header: () => sortableHeader('created_at', 'Added'),
@@ -217,6 +351,17 @@ const columns: TableColumn<Personality>[] = [{
     class: 'ml-auto'
   })))
 }]
+
+// Eleven data columns will not fit at once; start on the ones that carry the
+// story and leave the rest to the Display menu.
+const columnVisibilityDefaults = {
+  languages: false,
+  certifications: false,
+  interests: false,
+  occupation_levels: false
+}
+
+columnVisibility.value = { ...columnVisibilityDefaults }
 </script>
 
 <template>
@@ -257,6 +402,20 @@ const columns: TableColumn<Personality>[] = [{
             class="min-w-36"
           />
 
+          <LookupSelect
+            v-model="picked.skill_id"
+            dimension="skills"
+            label="Skill"
+            placeholder="Skills"
+          />
+
+          <LookupSelect
+            v-model="picked.industry_id"
+            dimension="industries"
+            label="Industry"
+            placeholder="Industries"
+          />
+
           <UDropdownMenu
             :items="table?.tableApi
               ?.getAllColumns()
@@ -291,15 +450,23 @@ const columns: TableColumn<Personality>[] = [{
             />
 
             <template #content>
-              <div class="flex flex-col gap-3 p-4 w-72">
-                <UFormField label="Industry ID">
-                  <UInputNumber
-                    v-model="industryId"
-                    :min="1"
-                    placeholder="Any"
+              <div class="flex flex-col gap-3 p-4 w-80">
+                <UFormField
+                  v-for="entry in DIMENSIONS.filter(d => !['skill_id', 'industry_id'].includes(d.key))"
+                  :key="entry.key"
+                  :label="entry.label"
+                >
+                  <LookupSelect
+                    v-model="picked[entry.key]"
+                    :dimension="entry.dimension"
+                    :label="entry.label"
+                    :placeholder="`Any ${entry.label.toLowerCase()}`"
                     class="w-full"
                   />
                 </UFormField>
+
+                <USeparator />
+
                 <UFormField label="Import batch ID" help="Scope results to one upload.">
                   <UInputNumber
                     v-model="importBatchId"
@@ -308,10 +475,19 @@ const columns: TableColumn<Personality>[] = [{
                     class="w-full"
                   />
                 </UFormField>
+
                 <UFormField label="Birth year">
                   <div class="flex items-center gap-2">
-                    <UInputNumber v-model="birthYearMin" placeholder="From" class="w-full" />
-                    <UInputNumber v-model="birthYearMax" placeholder="To" class="w-full" />
+                    <UInputNumber
+                      v-model="birthYearMin"
+                      placeholder="From"
+                      class="w-full"
+                    />
+                    <UInputNumber
+                      v-model="birthYearMax"
+                      placeholder="To"
+                      class="w-full"
+                    />
                   </div>
                 </UFormField>
               </div>
@@ -345,11 +521,11 @@ const columns: TableColumn<Personality>[] = [{
         :loading="status === 'pending'"
         class="shrink-0"
         :ui="{
-          base: 'table-fixed border-separate border-spacing-0',
+          base: 'border-separate border-spacing-0',
           thead: '[&>tr]:bg-elevated/50 [&>tr]:after:content-none',
           tbody: '[&>tr]:last:[&>td]:border-b-0',
           th: 'py-2 first:rounded-l-lg last:rounded-r-lg border-y border-default first:border-l last:border-r',
-          td: 'border-b border-default',
+          td: 'border-b border-default align-top',
           separator: 'h-0'
         }"
       >

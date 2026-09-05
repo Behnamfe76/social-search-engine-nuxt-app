@@ -10,6 +10,14 @@ export const GENDER_OPTIONS: SelectItem[] = [
   { label: 'Unknown', value: 'unknown' }
 ]
 
+/**
+ * The taxonomy stores snake_case slugs (`human_resources`), so underscores are
+ * always a slug artifact in this data. Display only — ids are what get sent.
+ */
+export function humanise(value: string): string {
+  return value.replace(/_/g, ' ')
+}
+
 export function genderLabel(gender: Gender): string {
   return gender.charAt(0).toUpperCase() + gender.slice(1)
 }

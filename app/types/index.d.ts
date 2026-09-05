@@ -116,20 +116,59 @@ export interface HealthCheck {
 
 export type Gender = 'male' | 'female' | 'other' | 'unknown'
 
-/** The thin shape the list endpoint returns. */
-export interface Personality {
+/** The dimensions the lookup endpoints expose, as used in the proxy path. */
+export type LookupDimension
+  = 'industries' | 'skills' | 'interests' | 'languages'
+    | 'certifications' | 'companies' | 'occupation-roles' | 'occupation-levels'
+
+/** A filter option: `id` goes back as the filter value, `name` is shown. */
+export interface Lookup {
   id: number
-  industry_id: number | null
+  name: string
+  count: number
+}
+
+/** The same pair embedded in a profile, minus the count. */
+export interface LookupRef {
+  id: number
+  name: string
+}
+
+/**
+ * Cursor pages carry no total. The proxy hands back an opaque cursor rather
+ * than the API's absolute `next` URL, so the Django host stays server-side.
+ */
+export interface CursorPage<T> {
+  results: T[]
+  nextCursor: string | null
+}
+
+/** The dimensions a profile belongs to, as returned by list and retrieve. */
+export interface PersonalityDimensions {
+  skills: LookupRef[]
+  interests: LookupRef[]
+  languages: LookupRef[]
+  certifications: LookupRef[]
+  companies: LookupRef[]
+  occupation_roles: LookupRef[]
+  occupation_levels: LookupRef[]
+}
+
+/** The shape the list endpoint returns. `industry` is the name, not the id. */
+export interface Personality extends PersonalityDimensions {
+  id: number
+  industry: string | null
   full_name: string
   gender: Gender
   created_at: string
 }
 
 /** Everything the detail endpoint adds on top of the list shape. */
-export interface PersonalityDetail {
+export interface PersonalityDetail extends PersonalityDimensions {
   id: number
   import_batch_id: number | null
   industry_id: number | null
+  industry: string | null
   first_name: string
   middle_name: string | null
   middle_initial: string | null
@@ -185,7 +224,14 @@ export interface PersonalityQuery {
   search?: string
   full_name?: string
   gender?: Gender
-  industry_id?: number
+  industry_id?: number[]
+  skill_id?: number[]
+  interest_id?: number[]
+  language_id?: number[]
+  certification_id?: number[]
+  company_id?: number[]
+  occupation_role_id?: number[]
+  occupation_level_id?: number[]
   import_batch_id?: number
   birth_year_min?: number
   birth_year_max?: number

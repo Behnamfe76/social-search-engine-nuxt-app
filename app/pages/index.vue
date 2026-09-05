@@ -9,8 +9,7 @@ useSeoMeta({
 const { data, status, error, refresh } = await useFetch<DashboardStats>('/api/dashboard')
 
 function toBars(items: NamedCount[]): BarItem[] {
-  // The taxonomy stores snake_case slugs; show them the way people read them.
-  return items.map(item => ({ name: item.name.replace(/_/g, ' '), value: item.count }))
+  return items.map(item => ({ name: humanise(item.name), value: item.count }))
 }
 
 /** The headline row. Keyed off `totals`, which the API may grow over time. */
@@ -56,7 +55,7 @@ const coverageBars = computed<BarItem[]>(() => (data.value?.coverage ?? [])
   .slice()
   .sort((a, b) => b.percent - a.percent)
   .map(field => ({
-    name: field.name.replace(/_/g, ' '),
+    name: humanise(field.name),
     value: field.filled,
     hint: `${field.percent}%`
   })))

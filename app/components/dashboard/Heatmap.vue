@@ -52,11 +52,6 @@ function cellStyle(count: number) {
 }
 
 const legendStops = [0.15, 0.35, 0.6, 0.8, 1]
-
-/** The taxonomy stores snake_case slugs; show them the way people read them. */
-function humanise(value: string): string {
-  return value.replace(/_/g, ' ')
-}
 </script>
 
 <template>

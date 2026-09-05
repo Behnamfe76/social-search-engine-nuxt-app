@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import * as z from 'zod'
 import type { FormSubmitEvent } from '@nuxt/ui'
-import type { PersonalityDetail, PersonalityFormState } from '~/types'
+import type { LookupRef, PersonalityDetail, PersonalityFormState } from '~/types'
 
 const route = useRoute()
 const toast = useToast()
@@ -86,10 +86,31 @@ async function onSubmit(_event: FormSubmitEvent<Schema>) {
   }
 }
 
+/**
+ * The lookup dimensions, each chip linking back to the search filtered by it —
+ * the ids come back alongside the names precisely so this round-trips.
+ */
+const DIMENSION_SECTIONS = [
+  { key: 'skills', label: 'Skills', param: 'skill_id', icon: 'i-lucide-wrench' },
+  { key: 'companies', label: 'Companies', param: 'company_id', icon: 'i-lucide-building-2' },
+  { key: 'occupation_roles', label: 'Roles', param: 'occupation_role_id', icon: 'i-lucide-briefcase' },
+  { key: 'occupation_levels', label: 'Seniority', param: 'occupation_level_id', icon: 'i-lucide-trending-up' },
+  { key: 'languages', label: 'Languages', param: 'language_id', icon: 'i-lucide-languages' },
+  { key: 'certifications', label: 'Certifications', param: 'certification_id', icon: 'i-lucide-award' },
+  { key: 'interests', label: 'Interests', param: 'interest_id', icon: 'i-lucide-heart' }
+] as const
+
+const dimensions = computed(() => personality.value
+  ? DIMENSION_SECTIONS.map(section => ({
+      ...section,
+      items: (personality.value?.[section.key] ?? []) as LookupRef[]
+    })).filter(section => section.items.length)
+  : [])
+
 const facts = computed(() => personality.value
   ? [
       { label: 'Profile ID', value: `#${personality.value.id}` },
-      { label: 'Industry', value: personality.value.industry_id ? `#${personality.value.industry_id}` : '—' },
+      { label: 'Industry', value: personality.value.industry ? humanise(personality.value.industry) : '—' },
       { label: 'Import batch', value: personality.value.import_batch_id ? `#${personality.value.import_batch_id}` : '—' },
       { label: 'Birth date', value: personality.value.birth_date || '—' },
       { label: 'Location updated', value: personality.value.location_last_updated || '—' },
@@ -173,37 +194,69 @@ const facts = computed(() => personality.value
           </template>
         </UPageCard>
 
-        <UForm
-          ref="form"
-          :schema="schema"
-          :state="state"
-          class="lg:col-span-2"
-          @submit="onSubmit"
-        >
+        <div class="lg:col-span-2 flex flex-col gap-4">
           <UPageCard
-            title="Edit profile"
-            description="Changes are saved straight to the search index."
+            v-if="dimensions.length"
+            title="Attributes"
+            description="Everything this profile is indexed under. Select one to search for it."
             variant="subtle"
           >
-            <PersonalitiesFields v-model="state" />
+            <div class="flex flex-col gap-4">
+              <div v-for="section in dimensions" :key="section.key">
+                <p class="text-xs text-muted uppercase tracking-wide flex items-center gap-1.5 mb-2">
+                  <UIcon :name="section.icon" class="size-3.5" />
+                  {{ section.label }}
+                  <span class="text-dimmed normal-case tracking-normal">({{ section.items.length }})</span>
+                </p>
 
-            <template #footer>
-              <div class="flex justify-end gap-2">
-                <UButton
-                  label="Reset"
-                  color="neutral"
-                  variant="subtle"
-                  @click="refresh()"
-                />
-                <UButton
-                  label="Save changes"
-                  type="submit"
-                  :loading="loading"
-                />
+                <div class="flex flex-wrap gap-1.5">
+                  <UBadge
+                    v-for="item in section.items"
+                    :key="item.id"
+                    :to="`/personalities?${section.param}=${item.id}`"
+                    color="neutral"
+                    variant="subtle"
+                    class="max-w-64 hover:text-primary"
+                    :title="item.name"
+                  >
+                    <span class="truncate">{{ humanise(item.name) }}</span>
+                  </UBadge>
+                </div>
               </div>
-            </template>
+            </div>
           </UPageCard>
-        </UForm>
+
+          <UForm
+            ref="form"
+            :schema="schema"
+            :state="state"
+            @submit="onSubmit"
+          >
+            <UPageCard
+              title="Edit profile"
+              description="Changes are saved straight to the search index."
+              variant="subtle"
+            >
+              <PersonalitiesFields v-model="state" />
+
+              <template #footer>
+                <div class="flex justify-end gap-2">
+                  <UButton
+                    label="Reset"
+                    color="neutral"
+                    variant="subtle"
+                    @click="refresh()"
+                  />
+                  <UButton
+                    label="Save changes"
+                    type="submit"
+                    :loading="loading"
+                  />
+                </div>
+              </template>
+            </UPageCard>
+          </UForm>
+        </div>
       </div>
     </template>
   </UDashboardPanel>

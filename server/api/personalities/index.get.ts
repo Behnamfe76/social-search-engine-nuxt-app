@@ -2,6 +2,16 @@ import * as z from 'zod'
 import type { Paginated, Personality } from '~/types'
 
 /**
+ * A dimension filter. Repeated query params arrive as an array and a single one
+ * as a scalar, so both are normalised to a list before they go back out — the
+ * API takes `?skill_id=1&skill_id=2`.
+ */
+const idList = z
+  .union([z.coerce.number().int().positive(), z.array(z.coerce.number().int().positive())])
+  .optional()
+  .transform(value => value === undefined ? undefined : (Array.isArray(value) ? value : [value]))
+
+/**
  * The documented filters, coerced from strings because they arrive as query
  * params. Unknown keys are dropped rather than forwarded, so the API only ever
  * sees parameters it advertises.
@@ -10,7 +20,14 @@ const querySchema = z.object({
   search: z.string().optional(),
   full_name: z.string().optional(),
   gender: z.enum(['male', 'female', 'other', 'unknown']).optional(),
-  industry_id: z.coerce.number().int().positive().optional(),
+  industry_id: idList,
+  skill_id: idList,
+  interest_id: idList,
+  language_id: idList,
+  certification_id: idList,
+  company_id: idList,
+  occupation_role_id: idList,
+  occupation_level_id: idList,
   import_batch_id: z.coerce.number().int().positive().optional(),
   birth_year_min: z.coerce.number().int().optional(),
   birth_year_max: z.coerce.number().int().optional(),
