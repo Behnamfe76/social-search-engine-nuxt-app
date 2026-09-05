@@ -77,7 +77,7 @@ export function formatDuration(seconds: number | null | undefined): string {
   return `${minutes}m ${Math.round(seconds % 60)}s`
 }
 
-/** Times today, dates otherwise — the same rule the inbox list uses. */
+/** Times for today, dates otherwise. */
 export function formatDateTime(value: string | null | undefined): string {
   if (!value) {
     return '—'
