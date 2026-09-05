@@ -1,0 +1,31 @@
+.git/
+.gitignore
+.github/
+.idea/
+.vscode/
+
+# Installed inside the image for the target platform; a host copy would shadow
+# it and can hold binaries built for a different architecture.
+node_modules/
+
+# The image installs with npm from package-lock.json. Keeping pnpm's files out
+# of the context stops the two resolvers from disagreeing inside the build.
+pnpm-lock.yaml
+pnpm-workspace.yaml
+
+# Build output is produced by the build stage, never copied in.
+.nuxt/
+.output/
+dist/
+.data/
+.nitro/
+.cache/
+
+# Secrets are passed at run time via the environment, never baked into a layer.
+.env
+.env.*
+!.env.example
+
+*.log
+.DS_Store
+coverage/

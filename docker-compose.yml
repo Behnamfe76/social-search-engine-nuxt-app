@@ -1,0 +1,43 @@
+services:
+  web:
+    build:
+      context: .
+    image: sse_nuxt_app
+    restart: unless-stopped
+    env_file:
+      # Optional: the image runs on defaults alone.
+      - path: .env
+        required: false
+    environment:
+      # Requests to the API are made from inside the container, so `localhost`
+      # would be the container itself. host-gateway resolves to the Docker host,
+      # where the Django compose publishes port 8000. To run both stacks on one
+      # network instead, set this to http://app:8000/api/v1 and attach the
+      # api_network below.
+      NUXT_API_BASE: ${NUXT_API_BASE:-http://host.docker.internal:8000/api/v1}
+      NUXT_PUBLIC_SITE_URL: ${NUXT_PUBLIC_SITE_URL:-}
+    extra_hosts:
+      # Docker Desktop defines this name already; on Linux it has to be asked
+      # for explicitly, and doing so is harmless on both.
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/healthz"]
+      interval: 10s
+      timeout: 3s
+      start_period: 15s
+      retries: 6
+
+# Uncomment, along with the `networks` key on the service, to talk to the Django
+# stack over its own network rather than through the host. The name is the API
+# project's directory plus `_default`.
+#
+#    networks:
+#      - default
+#      - api_network
+#
+# networks:
+#   api_network:
+#     external: true
+#     name: djangoproject2_default
