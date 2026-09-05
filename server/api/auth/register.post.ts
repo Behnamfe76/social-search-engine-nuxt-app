@@ -8,7 +8,7 @@ const bodySchema = z.object({
 })
 
 export default defineEventHandler(async (event): Promise<SessionResponse> => {
-  const payload = await readValidatedBody(event, bodySchema.parse)
+  const payload = await validateBody(event, bodySchema)
   const api = useApi(event)
 
   try {

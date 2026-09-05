@@ -64,3 +64,33 @@ function apiErrorBody(error: unknown): ApiErrorData {
 
   return typeof data.data === 'object' && data.data !== null ? data.data : data
 }
+
+/** The writable personality fields, in the order the form shows them. */
+export const PERSONALITY_FIELDS = [
+  'first_name',
+  'last_name',
+  'middle_name',
+  'middle_initial',
+  'gender',
+  'birth_date',
+  'birth_year',
+  'industry_id',
+  'import_batch_id',
+  'summary',
+  'inferred_salary',
+  'inferred_years_experience',
+  'location_last_updated'
+]
+
+/**
+ * Drop the keys the user never filled in. An empty `UInput` yields `''`, which
+ * DRF rejects on a nullable integer, so blanks are sent as `null` and untouched
+ * fields are left out of the request entirely.
+ */
+export function cleanInput<T extends Record<string, unknown>>(state: T): Partial<T> {
+  return Object.fromEntries(
+    Object.entries(state)
+      .filter(([, value]) => value !== undefined)
+      .map(([key, value]) => [key, value === '' ? null : value])
+  ) as Partial<T>
+}

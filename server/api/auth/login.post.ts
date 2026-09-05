@@ -7,7 +7,7 @@ const bodySchema = z.object({
 })
 
 export default defineEventHandler(async (event): Promise<SessionResponse> => {
-  const credentials = await readValidatedBody(event, bodySchema.parse)
+  const credentials = await validateBody(event, bodySchema)
 
   try {
     const { user, ...tokens } = await useApi(event)<TokenPair & { user: AuthUser }>('/auth/login/', {

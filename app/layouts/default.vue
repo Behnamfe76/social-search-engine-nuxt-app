@@ -22,6 +22,20 @@ const links = [[{
     open.value = false
   }
 }, {
+  label: 'Personalities',
+  icon: 'i-lucide-user-search',
+  to: '/personalities',
+  onSelect: () => {
+    open.value = false
+  }
+}, {
+  label: 'Imports',
+  icon: 'i-lucide-file-up',
+  to: '/imports',
+  onSelect: () => {
+    open.value = false
+  }
+}, {
   label: 'Customers',
   icon: 'i-lucide-users',
   to: '/customers',
