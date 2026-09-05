@@ -174,6 +174,13 @@ export type PersonalityFormState = {
   [K in keyof PersonalityInput]: Exclude<PersonalityInput[K], null>
 }
 
+/** One applied filter, as shown in the active-filters bar. */
+export interface ActiveFilter {
+  key: string
+  label: string
+  value: string
+}
+
 export interface PersonalityQuery {
   search?: string
   full_name?: string

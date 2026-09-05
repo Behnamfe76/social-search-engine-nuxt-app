@@ -1,7 +1,8 @@
 <script setup lang="ts">
+import { upperFirst } from 'scule'
 import type { TableColumn } from '@nuxt/ui'
 import type { Row } from '@tanstack/table-core'
-import type { Gender, Paginated, Personality } from '~/types'
+import type { ActiveFilter, Gender, Paginated, Personality } from '~/types'
 
 const UButton = resolveComponent('UButton')
 const UBadge = resolveComponent('UBadge')
@@ -16,6 +17,18 @@ useSeoMeta({
 const route = useRoute()
 const router = useRouter()
 const toast = useToast()
+const table = useTemplateRef('table')
+
+const columnVisibility = ref()
+
+/** Column ids are the API's snake_case field names, so they need real labels. */
+const COLUMN_LABELS: Record<string, string> = {
+  id: 'ID',
+  full_name: 'Name',
+  gender: 'Gender',
+  industry_id: 'Industry',
+  created_at: 'Added'
+}
 
 function queryString(key: string): string {
   const value = route.query[key]
@@ -79,21 +92,50 @@ watch(query, (value) => {
   })
 })
 
-const hasFilters = computed(() => !!search.value
-  || gender.value !== 'all'
-  || industryId.value !== undefined
-  || importBatchId.value !== undefined
-  || birthYearMin.value !== undefined
-  || birthYearMax.value !== undefined)
+/** Clearing one chip and clearing everything share these setters. */
+const FILTER_RESETTERS: Record<string, () => void> = {
+  search: () => { search.value = '' },
+  gender: () => { gender.value = 'all' },
+  industry_id: () => { industryId.value = undefined },
+  import_batch_id: () => { importBatchId.value = undefined },
+  birth_year_min: () => { birthYearMin.value = undefined },
+  birth_year_max: () => { birthYearMax.value = undefined }
+}
+
+function clearFilter(key: string) {
+  FILTER_RESETTERS[key]?.()
+}
 
 function resetFilters() {
-  search.value = ''
-  gender.value = 'all'
-  industryId.value = undefined
-  importBatchId.value = undefined
-  birthYearMin.value = undefined
-  birthYearMax.value = undefined
+  Object.values(FILTER_RESETTERS).forEach(reset => reset())
 }
+
+const activeFilters = computed<ActiveFilter[]>(() => {
+  const applied: ActiveFilter[] = []
+
+  if (search.value) {
+    applied.push({ key: 'search', label: 'Search', value: search.value })
+  }
+  if (gender.value !== 'all') {
+    applied.push({ key: 'gender', label: 'Gender', value: genderLabel(gender.value) })
+  }
+  if (industryId.value !== undefined) {
+    applied.push({ key: 'industry_id', label: 'Industry', value: `#${industryId.value}` })
+  }
+  if (importBatchId.value !== undefined) {
+    applied.push({ key: 'import_batch_id', label: 'Import batch', value: `#${importBatchId.value}` })
+  }
+  if (birthYearMin.value !== undefined) {
+    applied.push({ key: 'birth_year_min', label: 'Born from', value: String(birthYearMin.value) })
+  }
+  if (birthYearMax.value !== undefined) {
+    applied.push({ key: 'birth_year_max', label: 'Born to', value: String(birthYearMax.value) })
+  }
+
+  return applied
+})
+
+const hasFilters = computed(() => activeFilters.value.length > 0)
 
 function toggleOrdering(field: string) {
   ordering.value = ordering.value === field ? `-${field}` : field
@@ -163,6 +205,8 @@ const columns: TableColumn<Personality>[] = [{
   cell: ({ row }) => h('span', { class: 'text-muted' }, formatDateTime(row.original.created_at))
 }, {
   id: 'actions',
+  // Hiding the row menu is never what someone means by "Display".
+  enableHiding: false,
   cell: ({ row }) => h('div', { class: 'text-right' }, h(UDropdownMenu, {
     content: { align: 'end' },
     items: getRowItems(row)
@@ -213,6 +257,31 @@ const columns: TableColumn<Personality>[] = [{
             class="min-w-36"
           />
 
+          <UDropdownMenu
+            :items="table?.tableApi
+              ?.getAllColumns()
+              .filter((column: any) => column.getCanHide())
+              .map((column: any) => ({
+                label: COLUMN_LABELS[column.id] ?? upperFirst(column.id),
+                type: 'checkbox' as const,
+                checked: column.getIsVisible(),
+                onUpdateChecked(checked: boolean) {
+                  table?.tableApi?.getColumn(column.id)?.toggleVisibility(!!checked)
+                },
+                onSelect(e?: Event) {
+                  e?.preventDefault()
+                }
+              }))"
+            :content="{ align: 'end' }"
+          >
+            <UButton
+              label="Display"
+              color="neutral"
+              variant="outline"
+              trailing-icon="i-lucide-settings-2"
+            />
+          </UDropdownMenu>
+
           <UPopover>
             <UButton
               label="More filters"
@@ -245,19 +314,18 @@ const columns: TableColumn<Personality>[] = [{
                     <UInputNumber v-model="birthYearMax" placeholder="To" class="w-full" />
                   </div>
                 </UFormField>
-                <UButton
-                  v-if="hasFilters"
-                  label="Clear filters"
-                  color="neutral"
-                  variant="subtle"
-                  block
-                  @click="resetFilters"
-                />
               </div>
             </template>
           </UPopover>
         </div>
       </div>
+
+      <PersonalitiesActiveFilters
+        :filters="activeFilters"
+        :count="data?.count"
+        @clear="clearFilter"
+        @clear-all="resetFilters"
+      />
 
       <UAlert
         v-if="error"
@@ -270,6 +338,8 @@ const columns: TableColumn<Personality>[] = [{
       />
 
       <UTable
+        ref="table"
+        v-model:column-visibility="columnVisibility"
         :data="data?.results"
         :columns="columns"
         :loading="status === 'pending'"
