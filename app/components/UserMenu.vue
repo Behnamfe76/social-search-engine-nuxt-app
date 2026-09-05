@@ -11,17 +11,17 @@ const appConfig = useAppConfig()
 const colors = ['red', 'orange', 'amber', 'yellow', 'lime', 'green', 'emerald', 'teal', 'cyan', 'sky', 'blue', 'indigo', 'violet', 'purple', 'fuchsia', 'pink', 'rose']
 const neutrals = ['slate', 'gray', 'zinc', 'neutral', 'stone', 'taupe', 'mauve', 'mist', 'olive']
 
-const user = ref({
-  name: 'Benjamin Canac',
-  avatar: {
-    src: 'https://github.com/benjamincanac.png',
-    alt: 'Benjamin Canac'
-  }
-})
+const { user: account, logout } = useAuth()
+
+const user = computed(() => ({
+  name: account.value?.name || account.value?.email || 'Account',
+  // The API stores no avatar, so fall back to initials.
+  avatar: { alt: account.value?.name || account.value?.email || 'Account' }
+}))
 
 const items = computed<DropdownMenuItem[][]>(() => ([[{
   type: 'label',
-  label: user.value.name,
+  label: account.value?.email || user.value.name,
   avatar: user.value.avatar
 }], [{
   label: 'Profile',
@@ -158,7 +158,8 @@ const items = computed<DropdownMenuItem[][]>(() => ([[{
   target: '_blank'
 }], [{
   label: 'Log out',
-  icon: 'i-lucide-log-out'
+  icon: 'i-lucide-log-out',
+  onSelect: () => logout()
 }]]))
 </script>
 

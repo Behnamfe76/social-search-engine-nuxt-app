@@ -12,6 +12,16 @@ export default defineNuxtConfig({
 
   css: ['~/assets/css/main.css'],
 
+  runtimeConfig: {
+    // Server-only: the browser never talks to Django directly, every call is
+    // proxied through `server/api` so the tokens can stay in httpOnly cookies.
+    apiBase: 'http://localhost:8000/api/v1',
+
+    public: {
+      siteUrl: ''
+    }
+  },
+
   routeRules: {
     '/api/**': {
       cors: true
