@@ -227,6 +227,52 @@ export interface ImportRowError {
   created_at: string
 }
 
+export interface NamedCount {
+  name: string
+  count: number
+}
+
+export interface DashboardStats {
+  /** Open-ended: keyed row counts. Treated as data, not a fixed shape. */
+  totals: Record<string, number>
+  gender: NamedCount[]
+  top_skills: NamedCount[]
+  top_interests: NamedCount[]
+  top_languages: NamedCount[]
+  top_certifications: NamedCount[]
+  top_companies: NamedCount[]
+  company_sizes: NamedCount[]
+  occupation_roles: NamedCount[]
+  seniority_levels: NamedCount[]
+  seniority_by_role: { role: string, level: string, count: number }[]
+  tenure: {
+    sample_size: number
+    mean_years: number
+    median_years: number
+    buckets: NamedCount[]
+  }
+  employment_status: NamedCount[]
+  employments_per_person: { employments: number, people: number }[]
+  hires_by_year: { year: number, count: number }[]
+  social_platforms: { name: string, profiles: number, people: number }[]
+  platform_reach: { platforms: number, people: number }[]
+  coverage: { name: string, filled: number, total: number, percent: number }[]
+  imports: {
+    batches: NamedCount[]
+    processed_rows: number
+    created_rows: number
+    updated_rows: number
+    failed_rows: number
+  }
+}
+
+/** One row of a bar list: a label, a magnitude, and an optional aside. */
+export interface BarItem {
+  name: string
+  value: number
+  hint?: string
+}
+
 declare module '#app' {
   interface PageMeta {
     /** `false` opts a page out of the global auth guard. Defaults to `true`. */

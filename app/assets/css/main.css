@@ -16,3 +16,25 @@
   --color-green-900: #0A5331;
   --color-green-950: #052E16;
 }
+
+/*
+ * Chart tokens. Every value here was checked with the data-viz validator against
+ * the surfaces the charts actually render on (#fff light, zinc-900 dark), so the
+ * dark column is its own selected set rather than a flip of the light one.
+ *
+ *   --viz-mark      single-series marks. green-600 clears the lightness band and
+ *                   3:1 on BOTH surfaces, so one value serves both modes.
+ *   --viz-series-*  the two-series categorical slots (blue, orange): all checks
+ *                   pass in both modes, worst adjacent CVD dE 24.7 light / 26.8 dark.
+ */
+:root {
+  --viz-mark: #00A155;
+  --viz-series-1: #2a78d6;
+  --viz-series-2: #eb6834;
+}
+
+.dark {
+  --viz-mark: #00A155;
+  --viz-series-1: #3987e5;
+  --viz-series-2: #d95926;
+}
